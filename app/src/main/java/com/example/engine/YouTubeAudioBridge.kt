@@ -218,6 +218,7 @@ class YouTubeAudioBridge(
               'fs': 0,
               'rel': 0,
               'autoplay': 1,
+              'mute': 1,
               'origin': 'https://www.youtube.com'
           },
           events: {
@@ -231,9 +232,9 @@ class YouTubeAudioBridge(
   function onPlayerReady(event) {
       isReady = true;
       try {
-          if (player && player.unMute) {
-              player.unMute();
-          }
+          setTimeout(function() {
+              if (player && player.unMute) player.unMute();
+          }, 250);
       } catch(e) {}
       if (window.AuraBridge) window.AuraBridge.onReady();
       if (pendingVideoId) {
@@ -272,17 +273,22 @@ class YouTubeAudioBridge(
                   videoId: videoId,
                   startSeconds: 0
               });
-              player.unMute();
-
+              player.mute();
               player.playVideo();
+              setTimeout(function() {
+                  if (player && player.unMute) player.unMute();
+              }, 250);
           } else {
               player.cueVideoById(videoId);
           }
       } catch(e) {
           if (autoPlay && player.loadVideoById) {
               player.loadVideoById(videoId);
-              player.unMute();
-
+              player.mute();
+              player.playVideo();
+              setTimeout(function() {
+                  if (player && player.unMute) player.unMute();
+              }, 250);
           }
       }
   }
@@ -290,9 +296,11 @@ class YouTubeAudioBridge(
   function play() {
       if (player && player.playVideo) {
           try {
-              player.unMute();
-
+              player.mute();
               player.playVideo();
+              setTimeout(function() {
+                  if (player && player.unMute) player.unMute();
+              }, 250);
           } catch(e) {}
       }
   }
