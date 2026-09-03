@@ -243,6 +243,28 @@ class AuraDeckViewModel(application: Application) : AndroidViewModel(application
         visualizerEngine.setMode(mode)
     }
 
+    private val _searchResults = MutableStateFlow<List<com.example.stream.ResolvedTrackInfo>>(emptyList())
+    val searchResults: StateFlow<List<com.example.stream.ResolvedTrackInfo>> = _searchResults.asStateFlow()
+
+    private val _isSearching = MutableStateFlow(false)
+    val isSearching: StateFlow<Boolean> = _isSearching.asStateFlow()
+
+    fun searchYoutube(query: String) {
+        if (query.isBlank()) return
+        _isSearching.value = true
+        viewModelScope.launch {
+            val result = com.example.stream.StreamResolver.searchYoutube(query)
+            result.onSuccess {
+                _searchResults.value = it
+            }
+            _isSearching.value = false
+        }
+    }
+    
+    fun clearSearchResults() {
+        _searchResults.value = emptyList()
+    }
+
     // Stream & YouTube Ingestion
     fun setStreamUrlInput(input: String) {
         _streamInputState.update { it.copy(urlInput = input, errorMessage = null) }

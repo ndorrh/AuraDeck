@@ -138,4 +138,7 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.tooling)
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
+  
+  implementation("com.github.yausername.youtubedl-android:library:0.17.2")
+  implementation("com.github.yausername.youtubedl-android:ffmpeg:0.17.2")
 }

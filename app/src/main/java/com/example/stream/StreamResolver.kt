@@ -161,4 +161,39 @@ object StreamResolver {
             } catch (_: Exception) {}
         }
     }
+
+    suspend fun searchYoutube(query: String): Result<List<ResolvedTrackInfo>> = withContext(Dispatchers.IO) {
+        try {
+            val request = com.yausername.youtubedl_android.YoutubeDLRequest("ytsearch10:$query")
+            request.addOption("--dump-json")
+            
+            val response = com.yausername.youtubedl_android.YoutubeDL.getInstance().execute(request, null, null)
+            val jsonOut = response.out
+            
+            val tracks = mutableListOf<ResolvedTrackInfo>()
+            jsonOut.split("\n").forEach { line ->
+                if (line.isNotBlank()) {
+                    try {
+                        val json = JSONObject(line)
+                        val id = json.optString("id")
+                        if (id.isNotBlank()) {
+                            tracks.add(ResolvedTrackInfo(
+                                uri = "youtube:$id",
+                                title = json.optString("title", "Unknown Title"),
+                                artist = json.optString("uploader", "Unknown Artist"),
+                                durationMs = json.optLong("duration", 0L) * 1000L,
+                                thumbnailUrl = json.optString("thumbnail", "https://img.youtube.com/vi/$id/hqdefault.jpg"),
+                                isRemoteStream = true,
+                                bpm = 124,
+                                keySignature = "A min"
+                            ))
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+            Result.success(tracks)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

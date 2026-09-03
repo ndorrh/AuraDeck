@@ -38,6 +38,13 @@ class AuraDeckApp : Application() {
         dspEngine = AudioEngineDsp(this)
         audioEngine = DualDeckAudioEngine(this, dspEngine)
         visualizerEngine = VisualizerEngine()
+        
+        try {
+            com.yausername.youtubedl_android.YoutubeDL.getInstance().init(this)
+            com.yausername.ffmpeg.FFmpeg.getInstance().init(this)
+        } catch (e: Exception) {
+            android.util.Log.e("AuraDeckApp", "failed to initialize youtubedl-android", e)
+        }
     }
 
     override fun onTerminate() {

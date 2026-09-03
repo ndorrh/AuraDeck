@@ -63,9 +63,6 @@ class DualDeckAudioEngine(
     private var playerA: MediaPlayer? = null
     private var playerB: MediaPlayer? = null
 
-    private var ytPlayerA: YouTubeAudioBridge? = null
-    private var ytPlayerB: YouTubeAudioBridge? = null
-
     private val _uiState = MutableStateFlow(DualDeckUiState())
     val uiState: StateFlow<DualDeckUiState> = _uiState.asStateFlow()
 
@@ -73,145 +70,12 @@ class DualDeckAudioEngine(
 
     init {
         initializePlayers()
-        initializeYouTubePlayers()
         startPlaybackTicker()
     }
 
     private fun initializePlayers() {
         playerA = createConfiguredMediaPlayer("A")
         playerB = createConfiguredMediaPlayer("B")
-    }
-
-    private fun initializeYouTubePlayers() {
-        ytPlayerA = YouTubeAudioBridge(context, "A", object : YouTubePlayerListener {
-            override fun onReady() {
-                Log.d("DualDeckEngine", "Deck A YouTube bridge ready")
-            }
-
-            override fun onStateChange(state: Int) {
-                when (state) {
-                    1 -> { // Playing
-                        updateDeck("A") {
-                            it.copy(
-                                isPlaying = true,
-                                isPrepared = true,
-                                isLoading = false,
-                                isBuffering = false,
-                                statusText = null
-                            )
-                        }
-                    }
-                    2 -> { // Paused
-                        updateDeck("A") { it.copy(isPlaying = false) }
-                    }
-                    3 -> { // Buffering
-                        updateDeck("A") {
-                            it.copy(
-                                isBuffering = true,
-                                isLoading = true,
-                                statusText = "Buffering audio stream..."
-                            )
-                        }
-                    }
-                    0 -> { // Ended
-                        val looping = _uiState.value.deckA.isLooping
-                        if (looping) {
-                            ytPlayerA?.seekTo(0L)
-                            ytPlayerA?.play()
-                        } else {
-                            updateDeck("A") { it.copy(isPlaying = false, currentPositionMs = 0L) }
-                        }
-                    }
-                }
-            }
-
-            override fun onProgress(currentMs: Long, durationMs: Long, bufferPercent: Int) {
-                if (_uiState.value.deckA.isYoutubeTrack) {
-                    updateDeck("A") {
-                        it.copy(
-                            currentPositionMs = currentMs,
-                            durationMs = if (durationMs > 0) durationMs else it.durationMs,
-                            bufferPercent = bufferPercent
-                        )
-                    }
-                }
-            }
-
-            override fun onError(errorCode: Int) {
-                updateDeck("A") {
-                    it.copy(
-                        isLoading = false,
-                        isBuffering = false,
-                        statusText = "Stream error ($errorCode)"
-                    )
-                }
-            }
-        })
-
-        ytPlayerB = YouTubeAudioBridge(context, "B", object : YouTubePlayerListener {
-            override fun onReady() {
-                Log.d("DualDeckEngine", "Deck B YouTube bridge ready")
-            }
-
-            override fun onStateChange(state: Int) {
-                when (state) {
-                    1 -> {
-                        updateDeck("B") {
-                            it.copy(
-                                isPlaying = true,
-                                isPrepared = true,
-                                isLoading = false,
-                                isBuffering = false,
-                                statusText = null
-                            )
-                        }
-                    }
-                    2 -> {
-                        updateDeck("B") { it.copy(isPlaying = false) }
-                    }
-                    3 -> {
-                        updateDeck("B") {
-                            it.copy(
-                                isBuffering = true,
-                                isLoading = true,
-                                statusText = "Buffering audio stream..."
-                            )
-                        }
-                    }
-                    0 -> {
-                        val looping = _uiState.value.deckB.isLooping
-                        if (looping) {
-                            ytPlayerB?.seekTo(0L)
-                            ytPlayerB?.play()
-                        } else {
-                            updateDeck("B") { it.copy(isPlaying = false, currentPositionMs = 0L) }
-                        }
-                    }
-                }
-            }
-
-            override fun onProgress(currentMs: Long, durationMs: Long, bufferPercent: Int) {
-                if (_uiState.value.deckB.isYoutubeTrack) {
-                    updateDeck("B") {
-                        it.copy(
-                            currentPositionMs = currentMs,
-                            durationMs = if (durationMs > 0) durationMs else it.durationMs,
-                            bufferPercent = bufferPercent
-                        )
-                    }
-                }
-            }
-
-            override fun onError(errorCode: Int) {
-                updateDeck("B") {
-                    it.copy(
-                        isLoading = false,
-                        isBuffering = false,
-                        statusText = "Stream error ($errorCode)"
-                    )
-                }
-            }
-        })
     }
 
     private fun createConfiguredMediaPlayer(deckId: String, autoPlay: Boolean = false): MediaPlayer {
@@ -262,43 +126,6 @@ class DualDeckAudioEngine(
     fun loadTrack(deckId: String, track: TrackEntity, autoPlay: Boolean = true) {
         val isYoutube = track.uri.startsWith("youtube:") || track.uri.startsWith("yt:") || StreamResolver.isYoutubeUrl(track.uri)
 
-        if (isYoutube) {
-            // Stop/pause native MediaPlayer for this deck
-            try {
-                val mp = if (deckId == "A") playerA else playerB
-                if (mp?.isPlaying == true) mp.stop()
-                mp?.reset()
-            } catch (_: Exception) {}
-
-            val videoId = if (track.uri.startsWith("youtube:")) {
-                track.uri.removePrefix("youtube:")
-            } else if (track.uri.startsWith("yt:")) {
-                track.uri.removePrefix("yt:")
-            } else {
-                StreamResolver.extractYoutubeVideoId(track.uri) ?: track.uri
-            }
-
-            updateDeck(deckId) {
-                it.copy(
-                    track = track,
-                    isLoading = true,
-                    isBuffering = true,
-                    bufferPercent = 0,
-                    statusText = "Buffering YouTube stream...",
-                    isPrepared = false,
-                    isYoutubeTrack = true,
-                    currentPositionMs = 0L,
-                    durationMs = track.durationMs
-                )
-            }
-
-            val ytPlayer = if (deckId == "A") ytPlayerA else ytPlayerB
-            ytPlayer?.loadVideo(videoId, autoPlay = autoPlay)
-            recalculateVolumes()
-            return
-        }
-
-        // Native MediaPlayer playback (local storage, direct mp3/aac streams)
         if (deckId == "A") {
             try { playerA?.release() } catch (_: Exception) {}
             playerA = createConfiguredMediaPlayer("A", autoPlay)
@@ -308,19 +135,15 @@ class DualDeckAudioEngine(
         }
         val player = if (deckId == "A") playerA else playerB
 
-        // Stop YouTube bridge for this deck if active
-        val ytPlayer = if (deckId == "A") ytPlayerA else ytPlayerB
-        ytPlayer?.stop()
-
         updateDeck(deckId) {
             it.copy(
                 track = track,
                 isLoading = true,
                 isBuffering = true,
                 bufferPercent = 0,
-                statusText = "Loading audio...",
+                statusText = if (isYoutube) "Extracting YouTube audio..." else "Loading audio...",
                 isPrepared = false,
-                isYoutubeTrack = false,
+                isYoutubeTrack = isYoutube,
                 currentPositionMs = 0L
             )
         }
@@ -328,14 +151,36 @@ class DualDeckAudioEngine(
         coroutineScope.launch(Dispatchers.IO) {
             try {
                 val p = player ?: return@launch
-                if (track.uri.startsWith("content://") || track.uri.startsWith("file://")) {
-                    p.setDataSource(context, Uri.parse(track.uri))
+                var finalUrl = track.uri
+
+                if (isYoutube) {
+                    val videoId = if (track.uri.startsWith("youtube:")) {
+                        track.uri.removePrefix("youtube:")
+                    } else if (track.uri.startsWith("yt:")) {
+                        track.uri.removePrefix("yt:")
+                    } else {
+                        StreamResolver.extractYoutubeVideoId(track.uri) ?: track.uri
+                    }
+                    val ytUrl = "https://www.youtube.com/watch?v=$videoId"
+                    
+                    val request = com.yausername.youtubedl_android.YoutubeDLRequest(ytUrl)
+                    request.addOption("-f", "bestaudio[ext=m4a]/bestaudio/best")
+                    val streamInfo = com.yausername.youtubedl_android.YoutubeDL.getInstance().getInfo(request)
+                    finalUrl = streamInfo.url ?: throw Exception("Failed to extract audio URL")
+                    
+                    withContext(Dispatchers.Main) {
+                        updateDeck(deckId) { it.copy(statusText = "Buffering audio...") }
+                    }
+                }
+
+                if (finalUrl.startsWith("content://") || finalUrl.startsWith("file://")) {
+                    p.setDataSource(context, Uri.parse(finalUrl))
                 } else {
-                    p.setDataSource(track.uri)
+                    p.setDataSource(finalUrl)
                 }
                 p.prepareAsync()
             } catch (e: Exception) {
-                Log.e("DualDeckEngine", "Error loading track to Deck $deckId: ${e.message}")
+                Log.e("DualDeckEngine", "Error loading track to Deck $deckId: ${e.message}", e)
                 withContext(Dispatchers.Main) {
                     updateDeck(deckId) { it.copy(isLoading = false, isBuffering = false, statusText = "Failed to load audio") }
                 }
@@ -346,18 +191,6 @@ class DualDeckAudioEngine(
     fun togglePlayPause(deckId: String) {
         val currentDeckState = if (deckId == "A") _uiState.value.deckA else _uiState.value.deckB
 
-        if (currentDeckState.isYoutubeTrack) {
-            val ytPlayer = if (deckId == "A") ytPlayerA else ytPlayerB
-            if (currentDeckState.isPlaying) {
-                ytPlayer?.pause()
-                updateDeck(deckId) { it.copy(isPlaying = false) }
-            } else {
-                ytPlayer?.play()
-                updateDeck(deckId) { it.copy(isPlaying = true) }
-            }
-            recalculateVolumes()
-            return
-        }
 
         val player = (if (deckId == "A") playerA else playerB) ?: return
 
@@ -382,12 +215,6 @@ class DualDeckAudioEngine(
     fun seekTo(deckId: String, positionMs: Long) {
         val currentDeckState = if (deckId == "A") _uiState.value.deckA else _uiState.value.deckB
 
-        if (currentDeckState.isYoutubeTrack) {
-            val ytPlayer = if (deckId == "A") ytPlayerA else ytPlayerB
-            ytPlayer?.seekTo(positionMs)
-            updateDeck(deckId) { it.copy(currentPositionMs = positionMs) }
-            return
-        }
 
         val player = (if (deckId == "A") playerA else playerB) ?: return
         try {
@@ -421,11 +248,6 @@ class DualDeckAudioEngine(
         val currentDeckState = if (deckId == "A") _uiState.value.deckA else _uiState.value.deckB
         updateDeck(deckId) { it.copy(playbackSpeed = clamped) }
 
-        if (currentDeckState.isYoutubeTrack) {
-            val ytPlayer = if (deckId == "A") ytPlayerA else ytPlayerB
-            ytPlayer?.setPlaybackSpeed(clamped)
-            return
-        }
 
         val player = if (deckId == "A") playerA else playerB
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && player != null) {
@@ -533,16 +355,14 @@ class DualDeckAudioEngine(
             Log.w("DualDeckEngine", "Error setting volume: ${e.message}")
         }
 
-        ytPlayerA?.setVolume(gainA)
-        ytPlayerB?.setVolume(gainB)
+
     }
 
     fun stopAllAndRelease() {
         try {
             if (playerA?.isPlaying == true) playerA?.stop()
             if (playerB?.isPlaying == true) playerB?.stop()
-            ytPlayerA?.stop()
-            ytPlayerB?.stop()
+
         } catch (_: Exception) {}
         release()
     }
@@ -568,14 +388,12 @@ class DualDeckAudioEngine(
             val vuL = (baseLevel * 0.85f + jitterL).coerceIn(0.05f, 0.98f)
             val vuR = (baseLevel * 0.85f + jitterR).coerceIn(0.05f, 0.98f)
 
-            if (!state.deckA.isYoutubeTrack && playerA != null) {
+            if (playerA != null) {
                 try {
                     val pos = playerA!!.currentPosition.toLong()
                     val dur = playerA!!.duration.toLong().coerceAtLeast(1L)
                     updateDeck("A") { it.copy(currentPositionMs = pos, durationMs = dur, vuLevelL = vuL, vuLevelR = vuR) }
                 } catch (_: Exception) {}
-            } else {
-                updateDeck("A") { it.copy(vuLevelL = vuL, vuLevelR = vuR) }
             }
         } else {
             if (state.deckA.vuLevelL > 0f) {
@@ -591,14 +409,12 @@ class DualDeckAudioEngine(
             val vuL = (baseLevel * 0.85f + jitterL).coerceIn(0.05f, 0.98f)
             val vuR = (baseLevel * 0.85f + jitterR).coerceIn(0.05f, 0.98f)
 
-            if (!state.deckB.isYoutubeTrack && playerB != null) {
+            if (playerB != null) {
                 try {
                     val pos = playerB!!.currentPosition.toLong()
                     val dur = playerB!!.duration.toLong().coerceAtLeast(1L)
                     updateDeck("B") { it.copy(currentPositionMs = pos, durationMs = dur, vuLevelL = vuL, vuLevelR = vuR) }
                 } catch (_: Exception) {}
-            } else {
-                updateDeck("B") { it.copy(vuLevelL = vuL, vuLevelR = vuR) }
             }
         } else {
             if (state.deckB.vuLevelL > 0f) {

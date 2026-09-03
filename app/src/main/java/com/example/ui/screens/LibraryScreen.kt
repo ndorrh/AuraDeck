@@ -326,6 +326,126 @@ fun LibraryScreen(
             }
         }
 
+        // YouTube Music Search Card
+        item {
+            var searchQuery by remember { mutableStateOf("") }
+            val searchResults by viewModel.searchResults.collectAsState()
+            val isSearching by viewModel.isSearching.collectAsState()
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF151020)),
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2D1E3C)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Search",
+                                tint = DspSurroundViolet,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "YOUTUBE MUSIC SEARCH",
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                        if (searchResults.isNotEmpty()) {
+                            Text(
+                                text = "CLEAR",
+                                color = Color(0xFF94A3B8),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.clickable {
+                                    viewModel.clearSearchResults()
+                                    searchQuery = ""
+                                }
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = { Text("Search songs, artists, mixes...", fontSize = 11.sp, color = Color(0xFF64748B)) },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = DspSurroundViolet,
+                                unfocusedBorderColor = Color(0xFF243048),
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedContainerColor = Color(0xFF0C101A),
+                                unfocusedContainerColor = Color(0xFF0C101A)
+                            ),
+                            modifier = Modifier.weight(1f).height(50.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = { viewModel.searchYoutube(searchQuery) },
+                            enabled = searchQuery.isNotBlank() && !isSearching,
+                            colors = ButtonDefaults.buttonColors(containerColor = DspSurroundViolet),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(0.dp),
+                            modifier = Modifier.size(50.dp)
+                        ) {
+                            if (isSearching) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Default.Search, contentDescription = "Search", tint = Color.White)
+                            }
+                        }
+                    }
+
+                    if (searchResults.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            searchResults.forEach { resultInfo ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFF1A1423))
+                                        .clickable {
+                                            // Instantiate track and save it, then play it!
+                                            viewModel.resolveAndLoadStream(resultInfo.uri, autoPlay = true)
+                                        }
+                                        .padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    AsyncImage(
+                                        model = resultInfo.thumbnailUrl,
+                                        contentDescription = "Thumb",
+                                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(6.dp)),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(resultInfo.title, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(resultInfo.artist, color = Color(0xFF94A3B8), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                    Icon(Icons.Default.PlayArrow, contentDescription = "Play", tint = DspSurroundViolet)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Filter Pills Row
         item {
             Row(
