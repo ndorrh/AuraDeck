@@ -34,6 +34,7 @@ import com.example.ui.theme.DeckACyan
 import com.example.ui.theme.DeckBAmber
 import com.example.ui.theme.DspSurroundViolet
 import com.example.ui.theme.MatrixGreen
+import com.example.stream.ResolvedTrackInfo
 
 @Composable
 fun LibraryScreen(
@@ -64,6 +65,10 @@ fun LibraryScreen(
     val localCount = remember(allTracks) { allTracks.count { !it.isRemoteStream } }
     val streamCount = remember(allTracks) { allTracks.count { it.isRemoteStream } }
     val favCount = remember(allTracks) { allTracks.count { it.isFavorite } }
+
+    var searchQuery by remember { mutableStateOf("") }
+    val searchResults by viewModel.searchResults.collectAsState()
+    val isSearching by viewModel.isSearching.collectAsState()
 
     LazyColumn(
         modifier = modifier
@@ -328,10 +333,6 @@ fun LibraryScreen(
 
         // YouTube Music Search Card
         item {
-            var searchQuery by remember { mutableStateOf("") }
-            val searchResults by viewModel.searchResults.collectAsState()
-            val isSearching by viewModel.isSearching.collectAsState()
-
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF151020)),
                 shape = RoundedCornerShape(12.dp),
@@ -420,8 +421,8 @@ fun LibraryScreen(
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(Color(0xFF1A1423))
                                         .clickable {
-                                            // Instantiate track and save it, then play it!
                                             viewModel.resolveAndLoadStream(resultInfo.uri, autoPlay = true)
+                                            viewModel.selectTab(MainTab.DECKS)
                                         }
                                         .padding(8.dp),
                                     verticalAlignment = Alignment.CenterVertically
